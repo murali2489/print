@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:batch="http://www.springframework.org/schema/batch"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans 
+	http://www.springframework.org/schema/beans/spring-beans-3.0.xsd
+	http://www.springframework.org/schema/batch 
+	http://www.springframework.org/schema/batch/spring-batch-2.1.xsd">
+
+	<job id="ProcessABPPrintJob" restartable="true"
+		xmlns="http://www.springframework.org/schema/batch">
+		<step id="startNotification" next="retrieveDataForProcessing">
+			<tasklet ref="startProcessTasklet" />
+		</step>
+		<step id="retrieveDataForProcessing" next="processingDecision">
+			<tasklet ref="printDataRetrievalTasklet" />
+		</step>
+		<batch:decision decider="processingDecider"
+			id="processingDecision">
+			<batch:next on="SKIPPED" to="noDataToProcess" />
+			<batch:next on="*" to="updateSequenceNumbers" />
+		</batch:decision>
+
+		<batch:step id="updateSequenceNumbers"
+			next="processPrintItems">
+			<tasklet ref="updateSequenceNumbersTasklet" />
+
+		</batch:step>
+
+		<batch:split id="processPrintItems"
+			next="endNotification">
+			<batch:flow>
+				<batch:step id="processSimplex">
+					<batch:tasklet ref="processSimplexTasklet"></batch:tasklet>
+				</batch:step>
+			</batch:flow>
+			<batch:flow>
+				<batch:step id="processDuplex">
+					<batch:tasklet ref="processDuplexTasklet"></batch:tasklet>
+				</batch:step>
+			</batch:flow>
+
+		</batch:split>
+
+		<batch:step id="endNotification">
+			<batch:tasklet ref="reconcillationReportsTasklet"></batch:tasklet>
+		</batch:step>
+
+		<batch:step id="noDataToProcess" >
+			<tasklet ref="noDataToProcessTasklet" />
+
+		</batch:step>
+
+
+	</job>
+
+
+
+	<bean id="updateSequenceNumbersTasklet"
+		class="com.cna.abp.printbatch.tasklet.UpdateSequenceNumbersTasklet"
+		scope="step">
+	</bean>
+
+	<bean id="processSimplexTasklet"
+		class="com.cna.abp.printbatch.tasklet.ProcessSimplexTasklet">
+		
+		<property name="simplex" ref="simplexBean"></property>
+	</bean>
+
+
+	<bean id="processDuplexTasklet"
+		class="com.cna.abp.printbatch.tasklet.ProcessDuplexTasklet"
+		scope="step">
+		<property name="duplex" ref="duplexBean"></property>
+	</bean>
+
+
+	<bean id="duplexBean"
+		class="com.cna.abp.printbatch.tasklet.worker.DuplexWorker">
+	</bean>
+
+	<bean id="simplexBean"
+		class="com.cna.abp.printbatch.tasklet.worker.SimplexWorker">
+	</bean>
+
+
+
+	<bean id="reconcillationReportsTasklet"
+		class="com.cna.abp.printbatch.tasklet.ReconcillationReportsTasklet"
+		scope="step">
+	</bean>
+
+
+	<bean id="noDataToProcessTasklet"
+		class="com.cna.abp.printbatch.tasklet.NoDataToProcessTasklet"
+		scope="step">
+	</bean>
+
+
+
+	<bean id="printDataRetrievalTasklet"
+		class="com.cna.abp.printbatch.tasklet.PrintDataRetrievalTasklet"
+		scope="step">
+		<property name="mailGroup"
+			value="#{jobParameters['mailGroup']}" />
+		<property name="documentClass"
+			value="#{jobParameters['documentClass']}" />
+		<property name="type" value="#{jobParameters['type']}" />
+	</bean>
+
+	<bean id="startProcessTasklet"
+		class="com.cna.abp.printbatch.tasklet.StartPrintProcess" scope="step">
+		<property name="mailGroup"
+			value="#{jobParameters['mailGroup']}" />
+		<property name="documentClass"
+			value="#{jobParameters['documentClass']}" />
+		<property name="type" value="#{jobParameters['type']}" />
+	</bean>
+
+
+</beans>
